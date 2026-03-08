@@ -1,6 +1,10 @@
 # mRNA Folding with Quantum Computing
 
-GenQ Hackathon project -- predicting mRNA secondary structure using QAOA on IonQ Aria via [QCentroid](https://qcentroid.xyz).
+GenQ Hackathon project -- predicting mRNA secondary structure using QAOA on IonQ via [QCentroid](https://qcentroid.xyz).
+
+Built at the **GenQ Hackathon** (Microsoft, IonQ, Moderna), during 2.5 days, October 17-19, 2025 in Geneva, addressing [UN SDG 3](https://sdgs.un.org/goals/goal3).
+
+More details about the team, event and my personal experience in [my LinkedIn post](https://www.linkedin.com/posts/mikita-mizerkin_notgptgenerated-genq-lifesciences-activity-7387133438954295297-C0lC).
 
 ## What this does
 
@@ -59,7 +63,4 @@ Classical methods (Nussinov, ViennaRNA) are obviously faster at these sizes -- q
 - Robert et al. (2024) [arXiv:2405.20328](https://arxiv.org/abs/2405.20328) -- extended approach, IonQ results
 - Turner 2004 nearest-neighbor parameters (Mathews et al., PNAS 2004)
 
-## Hackathon
 
-Built at the **GenQ Hackathon** (Microsoft, IonQ, Moderna) addressing [UN SDG 3](https://sdgs.un.org/goals/goal3).
-Platform: [QCentroid](https://qcentroid.xyz) | Hardware: [IonQ Aria](https://ionq.com)
