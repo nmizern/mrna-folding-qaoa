@@ -85,8 +85,8 @@ def vienna_mfe_predict(sequence):
         }
     except ImportError:
         return {
-            "structure": "." * len(seq),
-            "num_pairs": 0,
+            "structure": None,
+            "num_pairs": None,
             "energy": None,
             "elapsed_seconds": time.perf_counter() - t0,
         }

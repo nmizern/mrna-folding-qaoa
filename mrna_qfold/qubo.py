@@ -13,8 +13,8 @@ def build_qubo_matrix(preprocess_result, stacking_reward=-2.0, crossing_penalty=
 
     for i, neighbors in preprocess_result.stacking_sets.items():
         for j in neighbors:
-            ii, jj = min(i, j), max(i, j)
-            Q[ii][jj] += stacking_reward / 2
+            if i < j:
+                Q[i][j] += stacking_reward
 
     for (i, j) in preprocess_result.crossing_pairs:
         ii, jj = min(i, j), max(i, j)

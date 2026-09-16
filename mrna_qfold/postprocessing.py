@@ -13,7 +13,7 @@ class FoldingCandidate:
     is_valid: bool
     qubo_energy: float
     vienna_energy: Optional[float] = None
-    count: int = 1
+    probability: float = 1.0
 
 
 @dataclass
@@ -21,7 +21,6 @@ class PostprocessingResult:
     sequence: str
     candidates: list[FoldingCandidate] = field(default_factory=list)
     best_candidate: Optional[FoldingCandidate] = None
-    total_samples: int = 0
     valid_fraction: float = 0.0
 
 
@@ -29,11 +28,12 @@ def decode_bitstring(bitstring, quartets, sequence_length):
     active = [quartets[i] for i, bit in enumerate(bitstring) if bit == "1"]
 
     structure = list("." * sequence_length)
+    pairs = set()
     for q in active:
-        structure[q.k] = "("
-        structure[q.k + 1] = "("
-        structure[q.l - 1] = ")"
-        structure[q.l] = ")"
+        pairs.update(q.pairs)
+    for left, right in pairs:
+        structure[left] = "("
+        structure[right] = ")"
 
     return active, "".join(structure)
 
@@ -42,19 +42,18 @@ def validate_structure(active_quartets, sequence_length):
     if not active_quartets:
         return True
 
-    # position overlap check
-    all_pos = set()
+    partners = {}
+    pairs = set()
     for q in active_quartets:
-        if q.positions & all_pos:
-            return False
-        all_pos |= q.positions
+        for left, right in q.pairs:
+            if ((left in partners and partners[left] != right)
+                    or (right in partners and partners[right] != left)):
+                return False
+            partners[left] = right
+            partners[right] = left
+            pairs.add((left, right))
 
-    # pseudoknot check
-    pairs = []
-    for q in active_quartets:
-        pairs.append((q.k, q.l))
-        pairs.append((q.k + 1, q.l - 1))
-    pairs.sort()
+    pairs = sorted(pairs)
     for a in range(len(pairs)):
         for b in range(a + 1, len(pairs)):
             i1, j1 = pairs[a]
@@ -101,23 +100,29 @@ def evaluate_qubo_energy(bitstring, preprocess_result, stacking_reward=-2.0, cro
     return energy
 
 
-def postprocess(quantum_result, preprocess_result, top_k=10):
+def postprocess(quantum_result, preprocess_result, top_k=10,
+                stacking_reward=-2.0, crossing_penalty=10.0):
     seq = preprocess_result.sequence
     quartets = preprocess_result.quartets
     n = len(seq)
 
     candidates = []
-    total_count = 0
+    total_probability = 0.0
 
-    all_bitstrings = quantum_result.all_samples
+    all_bitstrings = quantum_result.samples
     if not all_bitstrings:
         all_bitstrings = {quantum_result.best_bitstring: 1}
 
-    for bitstring, count in all_bitstrings.items():
-        total_count += count
+    for bitstring, probability in all_bitstrings.items():
+        total_probability += probability
         active_q, dot_bracket = decode_bitstring(bitstring, quartets, n)
         is_valid = validate_structure(active_q, n)
-        qubo_e = evaluate_qubo_energy(bitstring, preprocess_result)
+        qubo_e = evaluate_qubo_energy(
+            bitstring,
+            preprocess_result,
+            stacking_reward,
+            crossing_penalty,
+        )
         vienna_e = compute_vienna_energy(seq, dot_bracket) if is_valid else None
 
         candidates.append(FoldingCandidate(
@@ -127,18 +132,18 @@ def postprocess(quantum_result, preprocess_result, top_k=10):
             is_valid=is_valid,
             qubo_energy=qubo_e,
             vienna_energy=vienna_e,
-            count=count,
+            probability=probability,
         ))
 
     candidates.sort(key=lambda c: (not c.is_valid, c.qubo_energy))
-    top = candidates[:top_k]
-    valid_count = sum(c.count for c in candidates if c.is_valid)
+    top = candidates if top_k is None else candidates[:top_k]
+    valid_probability = sum(c.probability for c in candidates if c.is_valid)
     best = next((c for c in candidates if c.is_valid), candidates[0] if candidates else None)
 
     return PostprocessingResult(
         sequence=seq,
         candidates=top,
         best_candidate=best,
-        total_samples=total_count,
-        valid_fraction=valid_count / total_count if total_count > 0 else 0.0,
+        valid_fraction=(valid_probability / total_probability
+                        if total_probability > 0 else 0.0),
     )

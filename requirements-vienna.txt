@@ -1,0 +1,3 @@
+-r requirements.txt
+
+ViennaRNA>=2.6

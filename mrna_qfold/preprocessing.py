@@ -1,4 +1,4 @@
-# Based on Fox et al. (2022) arXiv:2208.04367, Robert et al. (2024) arXiv:2405.20328
+# Based on Zaborniak et al. (2022) and Alevras et al. (2024)
 
 from dataclasses import dataclass, field
 
@@ -9,7 +9,7 @@ from .energy_params import is_valid_pair, get_quartet_energy
 MIN_LOOP_LENGTH = 3  # minimum unpaired bases in a hairpin
 
 
-@dataclass
+@dataclass(frozen=True)
 class Quartet:
     # two consecutive stacked base pairs: (k, k+1) -- (l, l-1)
     k: int
@@ -18,6 +18,10 @@ class Quartet:
     @property
     def positions(self):
         return {self.k, self.k + 1, self.l - 1, self.l}
+
+    @property
+    def pairs(self):
+        return {(self.k, self.l), (self.k + 1, self.l - 1)}
 
     def __repr__(self):
         return f"Q(k={self.k}, l={self.l})"
@@ -83,14 +87,12 @@ def find_stacking_sets(quartets):
     stacking = {i: set() for i in range(len(quartets))}
 
     for i, q in enumerate(quartets):
-        # outer extension
         outer = (q.k - 1, q.l + 1)
         if outer in lookup:
             j = lookup[outer]
             stacking[i].add(j)
             stacking[j].add(i)
-        # inner extension (next quartet inward along helix)
-        inner = (q.k + 2, q.l - 2)
+        inner = (q.k + 1, q.l - 1)
         if inner in lookup:
             j = lookup[inner]
             stacking[i].add(j)
@@ -103,18 +105,30 @@ def find_crossing_pairs(quartets):
     crossing = set()
     n = len(quartets)
     for i in range(n):
-        pos_i = quartets[i].positions
-        ki, li = quartets[i].k, quartets[i].l
         for j in range(i + 1, n):
-            pos_j = quartets[j].positions
-            kj, lj = quartets[j].k, quartets[j].l
+            pairs = quartets[i].pairs | quartets[j].pairs
+            partners = {}
+            has_overlap = False
+            for left, right in pairs:
+                if ((left in partners and partners[left] != right)
+                        or (right in partners and partners[right] != left)):
+                    has_overlap = True
+                    break
+                partners[left] = right
+                partners[right] = left
 
-            if pos_i & pos_j:
+            if has_overlap:
                 crossing.add((i, j))
                 continue
-            # pseudoknot check
-            if ki < kj < li < lj or kj < ki < lj < li:
-                crossing.add((i, j))
+
+            sorted_pairs = sorted(pairs)
+            for a, (left_a, right_a) in enumerate(sorted_pairs):
+                for left_b, right_b in sorted_pairs[a + 1:]:
+                    if left_a < left_b < right_a < right_b:
+                        crossing.add((i, j))
+                        break
+                if (i, j) in crossing:
+                    break
 
     return crossing
 

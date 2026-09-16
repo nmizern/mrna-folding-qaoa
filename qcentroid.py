@@ -4,7 +4,7 @@ import time
 from mrna_qfold.preprocessing import preprocess
 from mrna_qfold.qubo import build_qubo
 from mrna_qfold.quantum_solver import SolverConfig, solve_qaoa_qcentroid, solve_exact
-from mrna_qfold.postprocessing import postprocess
+from mrna_qfold.postprocessing import evaluate_qubo_energy, postprocess
 from mrna_qfold.classical_baseline import classical_benchmark
 
 logger = logging.getLogger("qcentroid-user-log")
@@ -37,10 +37,26 @@ def run(input_data, solver_params, extra_arguments):
     # QAOA via QCentroid runtime
     config = SolverConfig(qaoa_reps=qaoa_reps, max_iter=max_iter)
     quantum_result = solve_qaoa_qcentroid(qp, solver_params, config)
-    logger.info(f"best objective: {quantum_result.best_objective:.4f}")
+    expected_objective = sum(
+        probability * evaluate_qubo_energy(
+            bitstring,
+            prep,
+            stacking_reward,
+            crossing_penalty,
+        )
+        for bitstring, probability in quantum_result.samples.items()
+    )
+    logger.info(f"expected objective: {expected_objective:.4f}, "
+                f"best sample: {quantum_result.best_objective:.4f}")
 
     # postprocess
-    post = postprocess(quantum_result, prep, top_k=top_k)
+    post = postprocess(
+        quantum_result,
+        prep,
+        top_k=top_k,
+        stacking_reward=stacking_reward,
+        crossing_penalty=crossing_penalty,
+    )
     logger.info(f"structure: {post.best_candidate.dot_bracket}  "
                 f"valid_frac={post.valid_fraction:.0%}")
 
@@ -65,6 +81,7 @@ def run(input_data, solver_params, extra_arguments):
         "num_qubits": n_qubits,
         "best_structure": post.best_candidate.dot_bracket,
         "best_qubo_energy": post.best_candidate.qubo_energy,
+        "expected_qubo_energy": expected_objective,
         "best_vienna_energy": post.best_candidate.vienna_energy,
         "valid_fraction": post.valid_fraction,
         "qaoa_convergence": quantum_result.convergence_history,
@@ -74,7 +91,7 @@ def run(input_data, solver_params, extra_arguments):
                 "qubo_energy": c.qubo_energy,
                 "vienna_energy": c.vienna_energy,
                 "is_valid": c.is_valid,
-                "count": c.count,
+                "probability": c.probability,
             }
             for c in post.candidates
         ],
